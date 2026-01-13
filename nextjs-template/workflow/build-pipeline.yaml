@@ -24,10 +24,8 @@ spec:
     - name: app-name
       value: "{{APP_NAME}}"
 
-  # Service account with permissions to update deployments
   serviceAccountName: argo-workflow
 
-  # Volume templates
   volumeClaimTemplates:
   - metadata:
       name: workspace
@@ -38,7 +36,6 @@ spec:
           storage: 2Gi
 
   templates:
-  # Main workflow
   - name: build-and-deploy
     steps:
     - - name: clone-repo
@@ -65,7 +62,6 @@ spec:
     - - name: wait-for-rollout
         template: wait-rollout
 
-  # Clone Git repository
   - name: git-clone
     container:
       image: alpine/git:latest
@@ -83,7 +79,6 @@ spec:
       - name: workspace
         mountPath: /workspace
 
-  # Install dependencies
   - name: npm-install
     container:
       image: node:18-alpine
@@ -93,7 +88,6 @@ spec:
         - |
           echo "📦 Installing dependencies..."
 
-          # Use npm ci for faster, reproducible builds
           if [ -f package-lock.json ]; then
             npm ci --only=production
           else
@@ -112,7 +106,6 @@ spec:
           memory: "2Gi"
           cpu: "2000m"
 
-  # Run tests (optional, can be skipped)
   - name: run-tests
     container:
       image: node:18-alpine
@@ -122,7 +115,6 @@ spec:
         - |
           echo "🧪 Running tests..."
 
-          # Skip tests if not configured
           if ! grep -q '"test"' package.json; then
             echo "⚠️  No test script found, skipping tests"
             exit 0
@@ -141,7 +133,6 @@ spec:
           memory: "1Gi"
           cpu: "1000m"
 
-  # Build Next.js application
   - name: build-nextjs
     container:
       image: node:18-alpine
@@ -151,16 +142,13 @@ spec:
         - |
           echo "🏗️  Building Next.js application..."
 
-          # Set environment variables for build
           export NODE_ENV=production
           export NEXT_TELEMETRY_DISABLED=1
 
-          # Build the application
           npm run build
 
           echo "✓ Next.js build completed"
 
-          # Display build info
           if [ -d .next ]; then
             echo "📊 Build output size:"
             du -sh .next
@@ -176,14 +164,13 @@ spec:
           memory: "4Gi"
           cpu: "2000m"
 
-  # Build Docker image with Kaniko
   - name: docker-build
     container:
       image: gcr.io/kaniko-project/executor:v1.9.0
       workingDir: /workspace
       command: [/kaniko/executor]
       args:
-        - --dockerfile=/workspace/Dockerfile
+        - --dockerfile=/workspace/{{DOCKERFILE_PATH}}
         - --context=/workspace
         - --destination={{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}}
         - --destination={{workflow.parameters.image-name}}:latest
@@ -206,7 +193,6 @@ spec:
           memory: "2Gi"
           cpu: "2000m"
 
-  # Push image (handled by Kaniko above, this is a no-op placeholder)
   - name: docker-push
     container:
       image: alpine:latest
@@ -216,7 +202,6 @@ spec:
           echo "✓ Image pushed by Kaniko"
           echo "  Image: {{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}}"
 
-  # Update Kubernetes deployment
   - name: update-k8s-deployment
     container:
       image: bitnami/kubectl:latest
@@ -235,7 +220,6 @@ spec:
 
           echo "✓ Deployment updated"
 
-  # Wait for rollout to complete
   - name: wait-rollout
     container:
       image: bitnami/kubectl:latest
@@ -251,7 +235,6 @@ spec:
           if [ $? -eq 0 ]; then
             echo "✅ Deployment successful!"
 
-            # Display pod status
             echo ""
             echo "📊 Pod Status:"
             kubectl get pods -l app={{workflow.parameters.app-name}} \
@@ -261,7 +244,6 @@ spec:
             exit 1
           fi
 
-  # Volumes referenced by containers
   volumes:
   - name: docker-config
     secret:
