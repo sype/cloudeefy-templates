@@ -1,0 +1,84 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{APP_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{APP_NAME}}
+    framework: nextjs
+spec:
+  hosts:
+  - {{DOMAIN}}
+  gateways:
+  - istio-system/central-gateway  # Reference to central gateway
+  http:
+  - name: "nextjs-routes"
+    match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: {{APP_NAME}}.{{NAMESPACE}}.svc.cluster.local
+        port:
+          number: 80
+      weight: 100
+
+    # Timeout configuration
+    timeout: 60s
+
+    # Retry policy
+    retries:
+      attempts: 3
+      perTryTimeout: 20s
+      retryOn: gateway-error,connect-failure,refused-stream
+
+    # CORS policy
+    corsPolicy:
+      allowOrigins:
+      - prefix: https://
+      - prefix: http://localhost
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - PATCH
+      allowHeaders:
+      - content-type
+      - authorization
+      - x-requested-with
+      - x-csrf-token
+      maxAge: 24h
+      allowCredentials: true
+
+    # Headers manipulation
+    headers:
+      response:
+        add:
+          x-frame-options: "SAMEORIGIN"
+          x-content-type-options: "nosniff"
+          x-xss-protection: "1; mode=block"
+          strict-transport-security: "max-age=31536000; includeSubDomains"
+
+        # Cache headers for static assets
+        set:
+          cache-control: "public, max-age=31536000, immutable"
+
+    # Match for static assets (Next.js specific)
+  - name: "static-assets"
+    match:
+    - uri:
+        prefix: /_next/static/
+    - uri:
+        regex: ".*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$"
+    route:
+    - destination:
+        host: {{APP_NAME}}.{{NAMESPACE}}.svc.cluster.local
+        port:
+          number: 80
+    headers:
+      response:
+        add:
+          cache-control: "public, max-age=31536000, immutable"
+    timeout: 30s

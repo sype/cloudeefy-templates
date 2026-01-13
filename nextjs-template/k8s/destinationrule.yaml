@@ -1,0 +1,61 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{APP_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{APP_NAME}}
+    framework: nextjs
+spec:
+  host: {{APP_NAME}}.{{NAMESPACE}}.svc.cluster.local
+
+  # Traffic policy
+  trafficPolicy:
+    # Load balancing
+    loadBalancer:
+      consistentHash:
+        httpHeaderName: "x-user-id"  # Sticky sessions for SSR
+      # Alternative: simple: ROUND_ROBIN or LEAST_REQUEST
+
+    # Connection pool settings
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 2
+        maxRetries: 3
+        idleTimeout: 300s
+
+    # Outlier detection (circuit breaker)
+    outlierDetection:
+      consecutiveErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 40
+
+    # TLS settings (mTLS within mesh)
+    tls:
+      mode: ISTIO_MUTUAL
+
+  # Subsets for canary/blue-green deployments (optional)
+  subsets:
+  - name: stable
+    labels:
+      version: stable
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN
+
+  - name: canary
+    labels:
+      version: canary
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN

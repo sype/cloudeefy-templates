@@ -1,0 +1,68 @@
+# Next.js Template Manifest
+# This file describes the template configuration and requirements
+
+framework: nextjs
+version: 14.x
+runtime: nodejs
+node_version: 18
+build_tool: npm  # Supports: npm, pnpm, yarn
+
+# Build configuration
+build:
+  command: "npm run build"
+  install_command: "npm ci"
+  output_directory: ".next"
+  standalone: true  # Next.js standalone output
+
+# Runtime configuration
+runtime:
+  command: "node server.js"
+  port: 3000
+  health_check: "/api/health"
+
+# Framework features
+features:
+  - ssr           # Server-Side Rendering
+  - isr           # Incremental Static Regeneration
+  - static-export # Static HTML export
+  - image-optimization
+  - api-routes
+  - middleware
+
+# Environment variables
+env_vars:
+  required:
+    - NEXT_PUBLIC_API_URL
+  optional:
+    - NEXTAUTH_URL
+    - NEXTAUTH_SECRET
+    - DATABASE_URL
+    - NEXT_PUBLIC_ANALYTICS_ID
+
+# Resource requirements (Kubernetes)
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Scaling configuration
+scaling:
+  min_replicas: 2
+  max_replicas: 10
+  target_cpu_utilization: 70
+
+# Template metadata
+metadata:
+  author: "Cloudeefy Team"
+  description: "Production-ready Next.js deployment template with SSR support"
+  tags:
+    - frontend
+    - react
+    - ssr
+    - nextjs
+  documentation: "https://nextjs.org/docs"
+  example_repos:
+    - "https://github.com/vercel/next.js/tree/canary/examples/blog-starter"

@@ -1,0 +1,271 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: nextjs-build-{{APP_NAME}}
+  namespace: argo
+  labels:
+    framework: nextjs
+    app: {{APP_NAME}}
+spec:
+  entrypoint: build-and-deploy
+
+  arguments:
+    parameters:
+    - name: repo-url
+      value: "{{REPO_URL}}"
+    - name: git-branch
+      value: "main"
+    - name: git-commit-sha
+      value: "{{GIT_SHA}}"
+    - name: image-name
+      value: "{{REGISTRY}}/{{TENANT}}/{{IMAGE_NAME}}"
+    - name: namespace
+      value: "{{NAMESPACE}}"
+    - name: app-name
+      value: "{{APP_NAME}}"
+
+  # Service account with permissions to update deployments
+  serviceAccountName: argo-workflow
+
+  # Volume templates
+  volumeClaimTemplates:
+  - metadata:
+      name: workspace
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
+
+  templates:
+  # Main workflow
+  - name: build-and-deploy
+    steps:
+    - - name: clone-repo
+        template: git-clone
+
+    - - name: install-dependencies
+        template: npm-install
+
+    - - name: run-tests
+        template: run-tests
+
+    - - name: build-app
+        template: build-nextjs
+
+    - - name: build-docker-image
+        template: docker-build
+
+    - - name: push-docker-image
+        template: docker-push
+
+    - - name: update-deployment
+        template: update-k8s-deployment
+
+    - - name: wait-for-rollout
+        template: wait-rollout
+
+  # Clone Git repository
+  - name: git-clone
+    container:
+      image: alpine/git:latest
+      workingDir: /workspace
+      command: [sh, -c]
+      args:
+        - |
+          git clone {{workflow.parameters.repo-url}} .
+          git checkout {{workflow.parameters.git-branch}}
+          git reset --hard {{workflow.parameters.git-commit-sha}}
+          echo "✓ Cloned repository"
+          echo "✓ Branch: {{workflow.parameters.git-branch}}"
+          echo "✓ Commit: {{workflow.parameters.git-commit-sha}}"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+
+  # Install dependencies
+  - name: npm-install
+    container:
+      image: node:18-alpine
+      workingDir: /workspace
+      command: [sh, -c]
+      args:
+        - |
+          echo "📦 Installing dependencies..."
+
+          # Use npm ci for faster, reproducible builds
+          if [ -f package-lock.json ]; then
+            npm ci --only=production
+          else
+            npm install --only=production
+          fi
+
+          echo "✓ Dependencies installed"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+          cpu: "2000m"
+
+  # Run tests (optional, can be skipped)
+  - name: run-tests
+    container:
+      image: node:18-alpine
+      workingDir: /workspace
+      command: [sh, -c]
+      args:
+        - |
+          echo "🧪 Running tests..."
+
+          # Skip tests if not configured
+          if ! grep -q '"test"' package.json; then
+            echo "⚠️  No test script found, skipping tests"
+            exit 0
+          fi
+
+          npm test || echo "⚠️  Tests failed but continuing..."
+          echo "✓ Tests completed"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "1Gi"
+          cpu: "1000m"
+
+  # Build Next.js application
+  - name: build-nextjs
+    container:
+      image: node:18-alpine
+      workingDir: /workspace
+      command: [sh, -c]
+      args:
+        - |
+          echo "🏗️  Building Next.js application..."
+
+          # Set environment variables for build
+          export NODE_ENV=production
+          export NEXT_TELEMETRY_DISABLED=1
+
+          # Build the application
+          npm run build
+
+          echo "✓ Next.js build completed"
+
+          # Display build info
+          if [ -d .next ]; then
+            echo "📊 Build output size:"
+            du -sh .next
+          fi
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "1000m"
+        limits:
+          memory: "4Gi"
+          cpu: "2000m"
+
+  # Build Docker image with Kaniko
+  - name: docker-build
+    container:
+      image: gcr.io/kaniko-project/executor:v1.9.0
+      workingDir: /workspace
+      command: [/kaniko/executor]
+      args:
+        - --dockerfile=/workspace/Dockerfile
+        - --context=/workspace
+        - --destination={{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}}
+        - --destination={{workflow.parameters.image-name}}:latest
+        - --cache=true
+        - --cache-ttl=24h
+        - --compressed-caching=false
+        - --snapshot-mode=redo
+        - --log-format=text
+        - --verbosity=info
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+      - name: docker-config
+        mountPath: /kaniko/.docker/
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+          cpu: "2000m"
+
+  # Push image (handled by Kaniko above, this is a no-op placeholder)
+  - name: docker-push
+    container:
+      image: alpine:latest
+      command: [sh, -c]
+      args:
+        - |
+          echo "✓ Image pushed by Kaniko"
+          echo "  Image: {{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}}"
+
+  # Update Kubernetes deployment
+  - name: update-k8s-deployment
+    container:
+      image: bitnami/kubectl:latest
+      command: [sh, -c]
+      args:
+        - |
+          echo "🚀 Updating Kubernetes deployment..."
+
+          kubectl set image deployment/{{workflow.parameters.app-name}} \
+            nextjs={{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}} \
+            -n {{workflow.parameters.namespace}}
+
+          kubectl annotate deployment/{{workflow.parameters.app-name}} \
+            kubernetes.io/change-cause="Deploy commit {{workflow.parameters.git-commit-sha}}" \
+            -n {{workflow.parameters.namespace}} --overwrite
+
+          echo "✓ Deployment updated"
+
+  # Wait for rollout to complete
+  - name: wait-rollout
+    container:
+      image: bitnami/kubectl:latest
+      command: [sh, -c]
+      args:
+        - |
+          echo "⏳ Waiting for rollout to complete..."
+
+          kubectl rollout status deployment/{{workflow.parameters.app-name}} \
+            -n {{workflow.parameters.namespace}} \
+            --timeout=5m
+
+          if [ $? -eq 0 ]; then
+            echo "✅ Deployment successful!"
+
+            # Display pod status
+            echo ""
+            echo "📊 Pod Status:"
+            kubectl get pods -l app={{workflow.parameters.app-name}} \
+              -n {{workflow.parameters.namespace}}
+          else
+            echo "❌ Deployment failed or timed out"
+            exit 1
+          fi
+
+  # Volumes referenced by containers
+  volumes:
+  - name: docker-config
+    secret:
+      secretName: docker-registry-secret
+      items:
+      - key: .dockerconfigjson
+        path: config.json

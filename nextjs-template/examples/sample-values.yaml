@@ -1,0 +1,115 @@
+# Sample configuration values for Next.js deployment
+# These values are used to customize the template for your application
+
+# Application metadata
+app:
+  name: my-nextjs-app
+  namespace: production
+  domain: my-app.example.com
+
+# Git repository
+git:
+  repo_url: https://github.com/yourorg/your-nextjs-app
+  branch: main
+
+# Container registry
+registry:
+  url: rg.fr-par.scw.cloud
+  tenant: your-tenant
+  image_name: my-nextjs-app
+
+# Framework configuration
+framework:
+  name: nextjs
+  version: 14.x
+  node_version: 18
+
+# Build configuration
+build:
+  command: npm run build
+  install_command: npm ci
+  output_directory: .next
+
+# Environment variables (public)
+env:
+  NEXT_PUBLIC_API_URL: https://api.example.com
+  NEXT_PUBLIC_APP_NAME: My Next.js App
+  NEXT_PUBLIC_ENVIRONMENT: production
+  NODE_ENV: production
+
+# Secrets (stored in Kubernetes Secret)
+secrets:
+  NEXTAUTH_SECRET: your-nextauth-secret-here
+  DATABASE_URL: postgresql://user:pass@host:5432/dbname
+
+# Resource configuration
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m
+
+# Scaling configuration
+scaling:
+  min_replicas: 2
+  max_replicas: 10
+  target_cpu_utilization: 70
+  target_memory_utilization: 80
+
+# Istio configuration
+istio:
+  enabled: true
+  gateway: istio-system/central-gateway
+
+  # Virtual Service
+  virtual_service:
+    timeout: 60s
+    retries:
+      attempts: 3
+      per_try_timeout: 20s
+    cors:
+      enabled: true
+      allow_origins:
+        - https://*
+        - http://localhost*
+
+  # Destination Rule
+  destination_rule:
+    load_balancer: ROUND_ROBIN  # or CONSISTENT_HASH
+    connection_pool:
+      max_connections: 100
+      max_requests_per_connection: 2
+    circuit_breaker:
+      consecutive_errors: 5
+      interval: 30s
+
+# TLS/SSL configuration
+tls:
+  enabled: true
+  issuer: letsencrypt-prod
+  secret_name: my-nextjs-app-tls
+
+# Health checks
+health_check:
+  liveness:
+    path: /api/health
+    initial_delay_seconds: 30
+    period_seconds: 10
+  readiness:
+    path: /api/health
+    initial_delay_seconds: 10
+    period_seconds: 5
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    port: 3000
+    path: /api/metrics
+
+# Canary deployment (optional)
+canary:
+  enabled: false
+  weight: 10  # Percentage of traffic to canary
