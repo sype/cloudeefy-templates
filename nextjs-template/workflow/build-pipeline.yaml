@@ -222,6 +222,7 @@ spec:
         - --cache-ttl=24h
         - --compressed-caching=false
         - --snapshotMode=redo
+        - --skip-push-permission-check
         - --log-format=text
         - --verbosity=info
       env:
