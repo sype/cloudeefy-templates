@@ -101,7 +101,7 @@ spec:
       - name: source
         path: /workspace
     container:
-      image: node:18-alpine
+      image: node:20-alpine
       workingDir: /workspace
       command: [sh, -c]
       args:
@@ -136,7 +136,7 @@ spec:
       - name: source
         path: /workspace
     container:
-      image: node:18-alpine
+      image: node:20-alpine
       workingDir: /workspace
       command: [sh, -c]
       args:
@@ -171,7 +171,7 @@ spec:
       - name: source
         path: /workspace
     container:
-      image: node:18-alpine
+      image: node:20-alpine
       workingDir: /workspace
       command: [sh, -c]
       args:
