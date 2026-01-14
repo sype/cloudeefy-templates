@@ -91,6 +91,9 @@ spec:
       artifacts:
       - name: source
         path: /workspace
+        archive:
+          tar:
+            compressionLevel: 1  # Faster compression
 
   - name: npm-install
     inputs:
@@ -123,6 +126,9 @@ spec:
       artifacts:
       - name: source
         path: /workspace
+        archive:
+          tar:
+            compressionLevel: 1  # Faster compression
 
   - name: run-tests
     inputs:
@@ -155,6 +161,9 @@ spec:
       artifacts:
       - name: source
         path: /workspace
+        archive:
+          tar:
+            compressionLevel: 1  # Faster compression
 
   - name: build-nextjs
     inputs:
@@ -191,6 +200,9 @@ spec:
       artifacts:
       - name: source
         path: /workspace
+        archive:
+          tar:
+            compressionLevel: 1  # Faster compression
 
   - name: docker-build
     inputs:
