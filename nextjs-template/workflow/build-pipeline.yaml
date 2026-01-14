@@ -26,11 +26,8 @@ spec:
 
   serviceAccountName: argo-workflow
 
-  # Volumes - using emptyDir for stateless builds (STATELESS FIRST principle)
+  # Docker registry credentials
   volumes:
-  - name: workspace
-    emptyDir:
-      sizeLimit: 5Gi  # Temporary workspace for build
   - name: docker-config
     secret:
       secretName: docker-registry-secret
@@ -46,15 +43,31 @@ spec:
 
     - - name: install-dependencies
         template: npm-install
+        arguments:
+          artifacts:
+          - name: source
+            from: "{{steps.clone-repo.outputs.artifacts.source}}"
 
     - - name: run-tests
         template: run-tests
+        arguments:
+          artifacts:
+          - name: source
+            from: "{{steps.install-dependencies.outputs.artifacts.source}}"
 
     - - name: build-app
         template: build-nextjs
+        arguments:
+          artifacts:
+          - name: source
+            from: "{{steps.run-tests.outputs.artifacts.source}}"
 
     - - name: build-docker-image
         template: docker-build
+        arguments:
+          artifacts:
+          - name: source
+            from: "{{steps.build-app.outputs.artifacts.source}}"
 
     # Image Updater will detect the new image and update the deployment
     # No need for kubectl update steps
@@ -68,15 +81,24 @@ spec:
         - |
           git clone {{workflow.parameters.repo-url}} .
           git checkout {{workflow.parameters.git-branch}}
-          git reset --hard {{workflow.parameters.git-commit-sha}}
+          if [ "{{workflow.parameters.git-commit-sha}}" != "latest" ]; then
+            git reset --hard {{workflow.parameters.git-commit-sha}} || echo "⚠️  Commit SHA not found, using HEAD"
+          fi
           echo "✓ Cloned repository"
           echo "✓ Branch: {{workflow.parameters.git-branch}}"
           echo "✓ Commit: {{workflow.parameters.git-commit-sha}}"
-      volumeMounts:
-      - name: workspace
-        mountPath: /workspace
+    outputs:
+      artifacts:
+      - name: source
+        path: /workspace
+        archive:
+          none: {}
 
   - name: npm-install
+    inputs:
+      artifacts:
+      - name: source
+        path: /workspace
     container:
       image: node:18-alpine
       workingDir: /workspace
@@ -92,9 +114,6 @@ spec:
           fi
 
           echo "✓ Dependencies installed"
-      volumeMounts:
-      - name: workspace
-        mountPath: /workspace
       resources:
         requests:
           memory: "512Mi"
@@ -102,8 +121,18 @@ spec:
         limits:
           memory: "2Gi"
           cpu: "2000m"
+    outputs:
+      artifacts:
+      - name: source
+        path: /workspace
+        archive:
+          none: {}
 
   - name: run-tests
+    inputs:
+      artifacts:
+      - name: source
+        path: /workspace
     container:
       image: node:18-alpine
       workingDir: /workspace
@@ -119,9 +148,6 @@ spec:
 
           npm test || echo "⚠️  Tests failed but continuing..."
           echo "✓ Tests completed"
-      volumeMounts:
-      - name: workspace
-        mountPath: /workspace
       resources:
         requests:
           memory: "512Mi"
@@ -129,8 +155,18 @@ spec:
         limits:
           memory: "1Gi"
           cpu: "1000m"
+    outputs:
+      artifacts:
+      - name: source
+        path: /workspace
+        archive:
+          none: {}
 
   - name: build-nextjs
+    inputs:
+      artifacts:
+      - name: source
+        path: /workspace
     container:
       image: node:18-alpine
       workingDir: /workspace
@@ -150,9 +186,6 @@ spec:
             echo "📊 Build output size:"
             du -sh .next
           fi
-      volumeMounts:
-      - name: workspace
-        mountPath: /workspace
       resources:
         requests:
           memory: "1Gi"
@@ -160,8 +193,18 @@ spec:
         limits:
           memory: "4Gi"
           cpu: "2000m"
+    outputs:
+      artifacts:
+      - name: source
+        path: /workspace
+        archive:
+          none: {}
 
   - name: docker-build
+    inputs:
+      artifacts:
+      - name: source
+        path: /workspace
     container:
       image: gcr.io/kaniko-project/executor:v1.9.0
       workingDir: /workspace
@@ -178,8 +221,6 @@ spec:
         - --log-format=text
         - --verbosity=info
       volumeMounts:
-      - name: workspace
-        mountPath: /workspace
       - name: docker-config
         mountPath: /kaniko/.docker/
       resources:
