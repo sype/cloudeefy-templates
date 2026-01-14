@@ -10,6 +10,14 @@ metadata:
     app.kubernetes.io/instance: {{APP_NAME}}
     app.kubernetes.io/component: frontend
     framework: nextjs
+  annotations:
+    # ArgoCD Image Updater configuration
+    # Automatically updates image tags when new versions are pushed to registry
+    argocd-image-updater.argoproj.io/image-list: app={{REGISTRY}}/{{TENANT}}/{{IMAGE_NAME}}
+    argocd-image-updater.argoproj.io/app.update-strategy: latest
+    argocd-image-updater.argoproj.io/app.allow-tags: regexp:^[a-f0-9]{7,40}$
+    argocd-image-updater.argoproj.io/app.pull-secret: pullsecret:argocd/scw-registry-creds
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
 

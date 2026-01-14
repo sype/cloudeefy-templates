@@ -53,14 +53,8 @@ spec:
     - - name: build-docker-image
         template: docker-build
 
-    - - name: push-docker-image
-        template: docker-push
-
-    - - name: update-deployment
-        template: update-k8s-deployment
-
-    - - name: wait-for-rollout
-        template: wait-rollout
+    # Image Updater will detect the new image and update the deployment
+    # No need for kubectl update steps
 
   - name: git-clone
     container:
@@ -193,56 +187,12 @@ spec:
           memory: "2Gi"
           cpu: "2000m"
 
-  - name: docker-push
-    container:
-      image: alpine:latest
-      command: [sh, -c]
-      args:
-        - |
-          echo "✓ Image pushed by Kaniko"
-          echo "  Image: {{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}}"
-
-  - name: update-k8s-deployment
-    container:
-      image: bitnami/kubectl:latest
-      command: [sh, -c]
-      args:
-        - |
-          echo "🚀 Updating Kubernetes deployment..."
-
-          kubectl set image deployment/{{workflow.parameters.app-name}} \
-            nextjs={{workflow.parameters.image-name}}:{{workflow.parameters.git-commit-sha}} \
-            -n {{workflow.parameters.namespace}}
-
-          kubectl annotate deployment/{{workflow.parameters.app-name}} \
-            kubernetes.io/change-cause="Deploy commit {{workflow.parameters.git-commit-sha}}" \
-            -n {{workflow.parameters.namespace}} --overwrite
-
-          echo "✓ Deployment updated"
-
-  - name: wait-rollout
-    container:
-      image: bitnami/kubectl:latest
-      command: [sh, -c]
-      args:
-        - |
-          echo "⏳ Waiting for rollout to complete..."
-
-          kubectl rollout status deployment/{{workflow.parameters.app-name}} \
-            -n {{workflow.parameters.namespace}} \
-            --timeout=5m
-
-          if [ $? -eq 0 ]; then
-            echo "✅ Deployment successful!"
-
-            echo ""
-            echo "📊 Pod Status:"
-            kubectl get pods -l app={{workflow.parameters.app-name}} \
-              -n {{workflow.parameters.namespace}}
-          else
-            echo "❌ Deployment failed or timed out"
-            exit 1
-          fi
+  # Build complete - Image Updater will handle deployment
+  # The workflow only builds and pushes the image
+  # ArgoCD Image Updater will:
+  # 1. Detect new image tag in registry (polls every 2 minutes)
+  # 2. Update the deployment via Kubernetes API
+  # 3. ArgoCD will sync the changes
 
   volumes:
   - name: docker-config
