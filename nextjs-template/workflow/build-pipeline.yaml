@@ -26,14 +26,17 @@ spec:
 
   serviceAccountName: argo-workflow
 
-  volumeClaimTemplates:
-  - metadata:
-      name: workspace
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 2Gi
+  # Volumes - using emptyDir for stateless builds (STATELESS FIRST principle)
+  volumes:
+  - name: workspace
+    emptyDir:
+      sizeLimit: 5Gi  # Temporary workspace for build
+  - name: docker-config
+    secret:
+      secretName: docker-registry-secret
+      items:
+      - key: .dockerconfigjson
+        path: config.json
 
   templates:
   - name: build-and-deploy
@@ -193,11 +196,3 @@ spec:
   # 1. Detect new image tag in registry (polls every 2 minutes)
   # 2. Update the deployment via Kubernetes API
   # 3. ArgoCD will sync the changes
-
-  volumes:
-  - name: docker-config
-    secret:
-      secretName: docker-registry-secret
-      items:
-      - key: .dockerconfigjson
-        path: config.json
