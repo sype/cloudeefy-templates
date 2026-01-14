@@ -224,6 +224,9 @@ spec:
         - --snapshotMode=redo
         - --log-format=text
         - --verbosity=info
+      env:
+      - name: DOCKER_CONFIG
+        value: /kaniko/.docker
       volumeMounts:
       - name: docker-config
         mountPath: /kaniko/.docker/
