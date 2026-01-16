@@ -1,0 +1,68 @@
+# React Template Manifest
+# This file describes the template configuration and requirements
+
+framework: react
+version: 18.x
+runtime: nginx
+node_version: auto  # Auto-detected from package.json (18, 19, 20, 21) or specify with --node-version flag
+build_tool: npm  # Supports: npm, pnpm, yarn
+
+# Build configuration
+build:
+  command: "npm run build"
+  install_command: "npm ci"
+  output_directory: "build"  # Default for CRA, may be "dist" for Vite
+  static_files: true
+
+# Runtime configuration
+runtime:
+  server: "nginx"
+  port: 80
+  health_check: "/health"  # nginx status endpoint
+  spa_mode: true  # Enable SPA fallback (all routes → index.html)
+
+# Framework features
+features:
+  - spa                    # Single Page Application
+  - client-side-routing    # React Router, etc.
+  - static-assets          # CSS, JS, images
+  - progressive-web-app    # PWA support (if configured)
+  - code-splitting         # Dynamic imports
+
+# Environment variables (build-time injection)
+env_vars:
+  required:
+    - REACT_APP_API_URL      # CRA convention
+  optional:
+    - REACT_APP_ANALYTICS_ID
+    - REACT_APP_AUTH_DOMAIN
+    - PUBLIC_URL             # Base path for assets
+
+# Resource requirements (Kubernetes)
+resources:
+  requests:
+    memory: "64Mi"     # Lower than Next.js (static serving)
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
+
+# Scaling configuration
+scaling:
+  min_replicas: 2
+  max_replicas: 10
+  target_cpu_utilization: 70
+
+# Template metadata
+metadata:
+  author: "Cloudeefy Team"
+  description: "Production-ready React SPA deployment with nginx"
+  tags:
+    - frontend
+    - react
+    - spa
+    - static
+  documentation: "https://react.dev/learn"
+  example_repos:
+    - "https://github.com/facebook/create-react-app"
+    - "https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react"

@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{APP_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{APP_NAME}}
+    framework: react
+    app.kubernetes.io/name: {{APP_NAME}}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    # ArgoCD Image Updater annotations
+    argocd-image-updater.argoproj.io/image-list: react={{REGISTRY}}/{{TENANT}}/{{IMAGE_NAME}}:~{{GIT_SHA}}
+    argocd-image-updater.argoproj.io/react.pull-secret: pullsecret:{{NAMESPACE}}/scw-registry-creds
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/react.allow-tags: regexp:^main-[0-9a-f]{7}$
+    argocd-image-updater.argoproj.io/react.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: git
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{APP_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{APP_NAME}}
+        framework: react
+        version: "{{GIT_SHA}}"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+        prometheus.io/path: "/health"
+    spec:
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101  # nginx user
+        fsGroup: 101
+
+      containers:
+      - name: react
+        image: {{REGISTRY}}/{{TENANT}}/{{IMAGE_NAME}}:latest
+        imagePullPolicy: Always
+
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+
+        # Resource limits (lighter than Next.js)
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+            httpHeaders:
+            - name: User-Agent
+              value: "k8s-liveness-probe"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+            httpHeaders:
+            - name: User-Agent
+              value: "k8s-readiness-probe"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5 && nginx -s quit"]
+
+      # Image pull secrets
+      imagePullSecrets:
+      - name: scw-registry-creds
+
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{APP_NAME}}
+              topologyKey: kubernetes.io/hostname

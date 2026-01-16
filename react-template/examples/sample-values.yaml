@@ -1,0 +1,18 @@
+# Sample values for React deployment
+# These environment variables are injected at build-time
+
+# For Create React App projects (REACT_APP_* prefix)
+REACT_APP_API_URL: "https://api.example.com"
+REACT_APP_ANALYTICS_ID: "UA-123456789-1"
+REACT_APP_AUTH_DOMAIN: "auth.example.com"
+
+# For Vite projects (VITE_* prefix)
+VITE_API_URL: "https://api.example.com"
+VITE_ANALYTICS_ID: "UA-123456789-1"
+
+# Public URL for assets (used by both CRA and Vite)
+PUBLIC_URL: "https://cdn.example.com"
+
+# Note: These variables must be set before the build
+# They are baked into the JavaScript bundle at build-time
+# and cannot be changed at runtime

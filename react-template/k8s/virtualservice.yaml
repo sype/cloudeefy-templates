@@ -1,0 +1,43 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{APP_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{APP_NAME}}
+    framework: react
+spec:
+  hosts:
+  - "{{DOMAIN}}"
+  gateways:
+  - istio-system/default-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: {{APP_NAME}}.{{NAMESPACE}}.svc.cluster.local
+        port:
+          number: 80
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: gateway-error,connect-failure,refused-stream
+    # CORS configuration (adjust as needed)
+    corsPolicy:
+      allowOrigins:
+      - exact: "https://{{DOMAIN}}"
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      allowHeaders:
+      - authorization
+      - content-type
+      - x-requested-with
+      allowCredentials: true
+      maxAge: "24h"
