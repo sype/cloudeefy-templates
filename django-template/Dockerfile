@@ -16,7 +16,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY django-template/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --- Production stage ---
@@ -25,7 +25,7 @@ FROM base AS production
 COPY --from=build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=build /usr/local/bin /usr/local/bin
 
-COPY . .
+COPY django-template/ .
 
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
