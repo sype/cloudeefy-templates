@@ -29,7 +29,8 @@ COPY django-template/ .
 
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
-RUN adduser --disabled-password --no-create-home appuser
+RUN adduser --disabled-password --no-create-home appuser && \
+    mkdir -p /app/media && chown appuser:appuser /app/media
 USER appuser
 
 EXPOSE 8000
